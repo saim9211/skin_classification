@@ -15,7 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Model Path
 # =========================
 
-model_path = "models/skin_classifier.pth"
+model_path = r"C:\Users\saima\skin classification\skin_classification\models\pneumonia_classifier.pth"
 
 
 # =========================

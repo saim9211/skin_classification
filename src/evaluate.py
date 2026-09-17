@@ -29,8 +29,8 @@ print("Device:", device)
 # Paths
 # =========================
 
-test_dir = "data/test"
-model_path = "models/skin_classifier.pth"
+test_dir = r"C:\Users\saima\skin classification\skin_classification\data\chest_xray_1\chest_xray\test"
+model_path = r"C:\Users\saima\skin classification\skin_classification\models\pneumonia_classifier.pth"
 
 
 # =========================

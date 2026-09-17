@@ -1,15 +1,4 @@
-import sys
 
-print("Python executable:")
-print(sys.executable)
-
-print("Python version:")
-print(sys.version)
-
-import torch
-
-print("Torch version:")
-print(torch.__version__)
 
 import torch
 import torch.nn as nn

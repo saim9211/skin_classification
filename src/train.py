@@ -17,10 +17,12 @@ print("Device:", device)
 # Paths
 # =========================
 
-train_dir = "data/train"
-val_dir = "data/val"
+train_dir = r"C:\Users\saima\skin classification\skin_classification\data\chest_xray_1\chest_xray\train"
+
+val_dir = r"C:\Users\saima\skin classification\skin_classification\data\chest_xray_1\chest_xray\test"
 
 model_dir = "models"
+
 os.makedirs(model_dir, exist_ok=True)
 
 
@@ -102,28 +104,50 @@ model = models.efficientnet_b0(
     weights=models.EfficientNet_B0_Weights.DEFAULT
 )
 
+
 # Freeze backbone
 for param in model.features.parameters():
     param.requires_grad = False
 
-# Classifier
+
+# Replace classifier
 model.classifier = nn.Sequential(
     nn.Dropout(0.2),
     nn.Linear(1280, num_classes)
 )
 
+
 model = model.to(device)
 
 
 # =========================
-# Loss and Optimizer
+# Trainable Parameters
+# =========================
+
+trainable_params = sum(
+    p.numel()
+    for p in model.parameters()
+    if p.requires_grad
+)
+
+print("Trainable parameters:", trainable_params)
+
+
+# =========================
+# Loss Function
 # =========================
 
 criterion = nn.CrossEntropyLoss()
 
+
+# =========================
+# Optimizer
+# =========================
+
 optimizer = torch.optim.Adam(
     model.classifier.parameters(),
-    lr=0.001
+    lr=0.001,
+    weight_decay=1e-4
 )
 
 
@@ -134,6 +158,10 @@ optimizer = torch.optim.Adam(
 epochs = 5
 
 for epoch in range(epochs):
+
+    # -------------------------
+    # Training
+    # -------------------------
 
     model.train()
 
@@ -164,12 +192,15 @@ for epoch in range(epochs):
 
         train_correct += (predicted == labels).sum().item()
 
+
+    train_loss = train_loss / len(train_loader)
+
     train_accuracy = train_correct / train_total
 
 
-    # =========================
+    # -------------------------
     # Validation
-    # =========================
+    # -------------------------
 
     model.eval()
 
@@ -196,14 +227,21 @@ for epoch in range(epochs):
 
             val_correct += (predicted == labels).sum().item()
 
+
+    val_loss = val_loss / len(val_loader)
+
     val_accuracy = val_correct / val_total
 
 
+    # -------------------------
+    # Results
+    # -------------------------
+
     print(
         f"Epoch [{epoch + 1}/{epochs}] "
-        f"Train Loss: {train_loss / len(train_loader):.4f} "
+        f"Train Loss: {train_loss:.4f} "
         f"Train Acc: {train_accuracy:.4f} "
-        f"Val Loss: {val_loss / len(val_loader):.4f} "
+        f"Val Loss: {val_loss:.4f} "
         f"Val Acc: {val_accuracy:.4f}"
     )
 
@@ -214,7 +252,7 @@ for epoch in range(epochs):
 
 model_path = os.path.join(
     model_dir,
-    "skin_classifier.pth"
+    "pneumonia_classifier.pth"
 )
 
 torch.save({
@@ -223,5 +261,6 @@ torch.save({
     "class_names": train_dataset.classes,
     "model_state_dict": model.state_dict()
 }, model_path)
+
 
 print("\nModel saved at:", model_path)
