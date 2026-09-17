@@ -1,7 +1,21 @@
-import torch 
-from torch import device, nn
-from torchvision import models
+import sys
+
+print("Python executable:")
+print(sys.executable)
+
+print("Python version:")
+print(sys.version)
+
+import torch
+
+print("Torch version:")
+print(torch.__version__)
+
+import torch
+import torch.nn as nn
 import torchvision
+from torchvision import models
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -12,7 +26,7 @@ import torch.nn as nn
 
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
-out_dt = 2
+out_dt = 4
 
 for param in model.features.parameters():
     param.requires_grad = False
