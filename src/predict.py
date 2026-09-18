@@ -71,7 +71,17 @@ transform = transforms.Compose([
 # Image Path
 # =========================
 
-image_path = "test_image.jpg"
+import os
+
+predict_dir = r"C:\Users\saima\skin classification\skin_classification\predict_Data"
+
+image_path = os.path.join(predict_dir, "penumina1.jpeg")
+
+
+print("Image path:", image_path)
+print("Image exists:", os.path.isfile(image_path))
+
+image = Image.open(image_path).convert("RGB")
 
 image = Image.open(image_path).convert("RGB")
 
