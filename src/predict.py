@@ -1,7 +1,9 @@
+import os
+
 import torch
 import torch.nn as nn
-from torchvision import transforms, models
 from PIL import Image
+from torchvision import models, transforms
 
 
 # =========================
@@ -12,49 +14,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # =========================
-# Model Path
-# =========================
-
-model_path = r"C:\Users\saima\skin classification\skin_classification\models\pneumonia_classifier.pth"
-
-
-# =========================
-# Load Checkpoint
-# =========================
-
-checkpoint = torch.load(
-    model_path,
-    map_location=device
-)
-
-num_classes = checkpoint["num_classes"]
-class_names = checkpoint["class_names"]
-
-
-# =========================
-# Model
-# =========================
-
-model = models.efficientnet_b0(
-    weights=None
-)
-
-model.classifier = nn.Sequential(
-    nn.Dropout(0.2),
-    nn.Linear(1280, num_classes)
-)
-
-model.load_state_dict(
-    checkpoint["model_state_dict"]
-)
-
-model = model.to(device)
-
-model.eval()
-
-
-# =========================
-# Image Transform
+# Shared transform
 # =========================
 
 transform = transforms.Compose([
@@ -68,60 +28,92 @@ transform = transforms.Compose([
 
 
 # =========================
-# Image Path
+# Model loader
 # =========================
 
-import os
+def load_model(model_path):
+    """Load a trained EfficientNet-B0 checkpoint and return the model + class names."""
+    model_path = os.path.abspath(model_path)
 
-predict_dir = r"C:\Users\saima\skin classification\skin_classification\predict_Data"
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found: {model_path}")
 
-image_path = os.path.join(predict_dir, "penumina1.jpeg")
+    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
 
+    if isinstance(checkpoint, dict):
+        if "model_state_dict" in checkpoint:
+            state_dict = checkpoint["model_state_dict"]
+        elif "state_dict" in checkpoint:
+            state_dict = checkpoint["state_dict"]
+        else:
+            raise KeyError("Checkpoint does not contain a model state dict.")
 
-print("Image path:", image_path)
-print("Image exists:", os.path.isfile(image_path))
+        num_classes = checkpoint.get("num_classes")
+        class_names = checkpoint.get("class_names")
+    else:
+        raise TypeError("Unsupported checkpoint format.")
 
-image = Image.open(image_path).convert("RGB")
+    if num_classes is None:
+        if class_names is not None:
+            num_classes = len(class_names)
+        else:
+            raise ValueError("Checkpoint missing num_classes and class_names.")
 
-image = Image.open(image_path).convert("RGB")
+    if class_names is None:
+        class_names = [f"Class_{i}" for i in range(num_classes)]
 
-image = transform(image)
-
-image = image.unsqueeze(0)
-
-image = image.to(device)
-
-
-# =========================
-# Prediction
-# =========================
-
-with torch.no_grad():
-
-    output = model(image)
-
-    probabilities = torch.softmax(
-        output,
-        dim=1
+    model = models.efficientnet_b0(weights=None)
+    model.classifier = nn.Sequential(
+        nn.Dropout(0.2),
+        nn.Linear(1280, num_classes)
     )
 
-    confidence, predicted_class = torch.max(
-        probabilities,
-        dim=1
-    )
+    model.load_state_dict(state_dict)
+    model = model.to(device)
+    model.eval()
+
+    return model, class_names
 
 
 # =========================
-# Result
+# Prediction helper
 # =========================
 
-predicted_class = predicted_class.item()
+def predict_image(model, image, class_names):
+    """Return predicted label, confidence, and class probabilities for a PIL image."""
+    if isinstance(image, str):
+        image = Image.open(image).convert("RGB")
+    elif hasattr(image, "convert"):
+        image = image.convert("RGB")
+    else:
+        raise TypeError("image must be a file path or a PIL.Image object")
 
-confidence = confidence.item()
+    image_tensor = transform(image).unsqueeze(0).to(next(model.parameters()).device)
 
-print("Prediction:", class_names[predicted_class])
+    with torch.no_grad():
+        output = model(image_tensor)
+        probabilities = torch.softmax(output, dim=1).squeeze(0)
+        confidence, predicted_index = torch.max(probabilities, dim=0)
 
-print(
-    "Confidence:",
-    f"{confidence * 100:.2f}%"
-)
+    predicted_index = int(predicted_index.item())
+    predicted_label = class_names[predicted_index]
+    confidence_value = float(confidence.item())
+    probability_list = [float(p) for p in probabilities.tolist()]
+
+    return predicted_label, confidence_value, probability_list
+
+
+# =========================
+# Optional direct run for testing
+# =========================
+
+if __name__ == "__main__":
+    model_path = os.path.abspath(os.path.join("models", "pneumonia_classifier.pth"))
+    image_path = os.path.abspath(os.path.join("predict_Data", "random_check.jpeg"))
+
+    model, class_names = load_model(model_path)
+    predicted_label, confidence, probabilities = predict_image(model, image_path, class_names)
+
+    print("Prediction:", predicted_label)
+    print("Confidence:", f"{confidence * 100:.2f}%")
+    print("Probabilities:", probabilities)
