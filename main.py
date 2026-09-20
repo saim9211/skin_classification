@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from PIL import Image
 
@@ -27,8 +27,15 @@ async def predict(file: UploadFile=File(...)):
     """Endpoint to upload an image for prediction."""
     # Read the uploaded file
     contents = await file.read()
-    image = Image.open(io.BytesIO(contents)).convert("RGB")
-    
+    if not contents:
+        raise HTTPException(status_code=400, detail="No file uploaded.")
+    if file.content_type not in ["image/jpeg", "image/png"]:
+        raise HTTPException(status_code=400, detail="Invalid file type. Please upload a JPEG or PNG image.")
+    try:
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Error occurred while processing the image.")
+
     # Make a prediction using the loaded model
     predicted_label, confidence_value, probability_list = predict_image(model, image, class_names)
     
@@ -37,5 +44,11 @@ async def predict(file: UploadFile=File(...)):
         "content_type": file.content_type,
         "predicted_label": predicted_label,
         "confidence_value": confidence_value,
-        "probability_list": probability_list
+        "probability_list":  {
+            class_name: round(float(probability), 4)
+            for class_name, probability in zip(
+                class_names,
+                probability_list
+            )
+        }
     }
