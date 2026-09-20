@@ -96,9 +96,13 @@ def predict_image(model, image, class_names):
         confidence, predicted_index = torch.max(probabilities, dim=0)
 
     predicted_index = int(predicted_index.item())
-    predicted_label = class_names[predicted_index]
     confidence_value = float(confidence.item())
     probability_list = [float(p) for p in probabilities.tolist()]
+
+    if confidence_value < 0.50:
+        predicted_label = "Unknown"
+    else:
+        predicted_label = class_names[predicted_index]
 
     return predicted_label, confidence_value, probability_list
 

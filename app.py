@@ -1,9 +1,8 @@
 import os
 
+import requests
 import streamlit as st
 from PIL import Image
-
-from src.predict import load_model, predict_image
 
 
 # ============================================================
@@ -13,8 +12,11 @@ from src.predict import load_model, predict_image
 st.set_page_config(
     page_title="Chest X-Ray Pneumonia Classifier",
     page_icon="🩺",
-    layout="wide"
+    layout="wide",
 )
+
+
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000/predict")
 
 
 # ------------------------------------------------------------
@@ -233,48 +235,6 @@ st.markdown(
 
 
 # ============================================================
-# MODEL PATH
-# ============================================================
-
-MODEL_PATH = os.path.join(
-    "models",
-    "pneumonia_classifier.pth"
-)
-
-
-# ============================================================
-# LOAD MODEL
-# ============================================================
-
-@st.cache_resource
-def get_model():
-    model, class_names = load_model(MODEL_PATH)
-    return model, class_names
-
-
-# ============================================================
-# CHECK MODEL FILE
-# ============================================================
-
-if not os.path.exists(MODEL_PATH):
-    st.error(f"Model file not found: {MODEL_PATH}")
-    st.info("Make sure pneumonia_classifier.pth is inside the models folder.")
-    st.stop()
-
-
-# ============================================================
-# LOAD TRAINED MODEL
-# ============================================================
-
-try:
-    model, class_names = get_model()
-except Exception as e:
-    st.error("Failed to load the trained model.")
-    st.exception(e)
-    st.stop()
-
-
-# ============================================================
 # GLOBAL LAYOUT
 # ============================================================
 
@@ -298,7 +258,7 @@ with st.sidebar:
     st.markdown(
         """
         <div class='sidebar-item'><span class='sidebar-key'>Model</span><span>EfficientNet-B0</span></div>
-        <div class='sidebar-item'><span class='sidebar-key'>Framework</span><span>PyTorch</span></div>
+        <div class='sidebar-item'><span class='sidebar-key'>Framework</span><span>FastAPI + PyTorch</span></div>
         <div class='sidebar-item'><span class='sidebar-key'>Input Size</span><span>224 × 224</span></div>
         <div class='sidebar-item'><span class='sidebar-key'>Classes</span><span>NORMAL, PNEUMONIA</span></div>
         """,
@@ -310,7 +270,7 @@ with st.sidebar:
     st.markdown("<div class='sidebar-title'>Controls</div>", unsafe_allow_html=True)
     st.markdown(
         """
-        <div class='sidebar-item'><span class='sidebar-key'>Format</span><span>JPG / PNG</span></div>
+        <div class='sidebar-item'><span class='sidebar-key'>API</span><span>Local FastAPI</span></div>
         <div class='sidebar-item'><span class='sidebar-key'>Decision</span><span>&lt; 50% = Unknown</span></div>
         """,
         unsafe_allow_html=True,
@@ -340,54 +300,68 @@ if uploaded_file is not None:
         st.markdown("<div class='section-card'>", unsafe_allow_html=True)
         if st.button("Analyze Image", use_container_width=True):
             try:
-                with st.spinner("Running model inference..."):
-                    predicted_label, confidence, probabilities = predict_image(
-                        model,
-                        image,
-                        class_names,
+                with st.spinner("Sending image to FastAPI backend..."):
+                    response = requests.post(
+                        API_URL,
+                        files={
+                            "file": (
+                                uploaded_file.name,
+                                uploaded_file.getvalue(),
+                                uploaded_file.type or "application/octet-stream",
+                            )
+                        },
+                        timeout=120,
                     )
 
-                st.markdown(
-                    """
-                    <div class='result-card'>
-                        <div class='result-badge'>Prediction Result</div>
-                        <p class='result-title'>"""
-                    + (f"{predicted_label}" if predicted_label != "Unknown" else "Unknown")
-                    + """</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                if predicted_label == "Unknown":
-                    st.warning("Prediction rejected: confidence is below 50%. The model is unsure and labeled the case as Unknown.")
+                if response.status_code != 200:
+                    st.error("Prediction request failed.")
+                    try:
+                        st.json(response.json())
+                    except Exception:
+                        st.write(response.text)
                 else:
-                    st.success(f"Prediction: {predicted_label}")
+                    result = response.json()
+                    predicted_label = result.get("predicted_label", "Unknown")
+                    confidence = float(result.get("confidence_value", 0.0))
+                    probabilities = result.get("probability_list", {})
 
-                st.markdown(
-                    """
-                    <div class='confidence-card'>
-                        <div style='color:#98a9c3; font-weight:600; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em;'>Confidence</div>
-                        <p class='confidence-value'>"""
-                    + f"{confidence * 100:.2f}%"
-                    + """</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                st.markdown("<div class='section-card probability-row'>", unsafe_allow_html=True)
-                st.subheader("Class Probabilities")
-                for class_name, probability in zip(class_names, probabilities):
-                    probability_percentage = float(probability) * 100
                     st.markdown(
-                        f"<div class='probability-item'><span>{class_name}</span><strong>{probability_percentage:.2f}%</strong></div>",
+                        f"""
+                        <div class='result-card'>
+                            <div class='result-badge'>Prediction Result</div>
+                            <p class='result-title'>{predicted_label}</p>
+                        </div>
+                        """,
                         unsafe_allow_html=True,
                     )
-                st.markdown("</div>", unsafe_allow_html=True)
+
+                    if predicted_label == "Unknown":
+                        st.warning("Prediction rejected: confidence is below 50%. The model is unsure and labeled the case as Unknown.")
+                    else:
+                        st.success(f"Prediction: {predicted_label}")
+
+                    st.markdown(
+                        f"""
+                        <div class='confidence-card'>
+                            <div style='color:#98a9c3; font-weight:600; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em;'>Confidence</div>
+                            <p class='confidence-value'>{confidence * 100:.2f}%</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                    st.markdown("<div class='section-card probability-row'>", unsafe_allow_html=True)
+                    st.subheader("Class Probabilities")
+                    for class_name, probability in probabilities.items():
+                        probability_percentage = float(probability) * 100
+                        st.markdown(
+                            f"<div class='probability-item'><span>{class_name}</span><strong>{probability_percentage:.2f}%</strong></div>",
+                            unsafe_allow_html=True,
+                        )
+                    st.markdown("</div>", unsafe_allow_html=True)
 
             except Exception as e:
-                st.error("An error occurred while making the prediction.")
+                st.error("An error occurred while sending the request to the backend.")
                 st.exception(e)
         else:
             st.info("👆 Click the button to run the chest X-ray prediction.")
@@ -408,6 +382,9 @@ else:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown("<div class='disclaimer'>⚠️ This application is an educational/research prototype and is not intended for medical diagnosis.</div>", unsafe_allow_html=True)
+st.markdown(
+    "<div class='disclaimer'>⚠️ This application is an educational/research prototype and is not intended for medical diagnosis.</div>",
+    unsafe_allow_html=True,
+)
 
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
