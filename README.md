@@ -38,6 +38,8 @@ The solution uses EfficientNet-B0, a lightweight yet highly effective convolutio
 
 The project uses a chest X-ray dataset organized into train and test folders, with images separated by class labels. The dataset structure is designed to work with PyTorch ImageFolder, which automatically handles class labels from directory naming.
 
+Get the Dataset from Following Link: https://drive.google.com/file/d/1VwEw8HMu1XLQlCy2_2L5JrzaSmVDqqFO/view?usp=drive_link
+
 ## Project Structure
 
 ```text
