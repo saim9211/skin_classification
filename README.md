@@ -2,6 +2,8 @@
 
 A portfolio-style deep learning project for chest X-ray image classification using EfficientNet-B0, trained to distinguish between normal and pneumonia-affected X-rays. The project includes model training, evaluation, prediction utilities, a FastAPI backend, and a Streamlit frontend for an interactive demo.
 
+Link: https://huggingface.co/spaces/saim9211/skin_classification
+
 ## Project Overview
 
 This project demonstrates a complete machine learning pipeline for medical image classification:
